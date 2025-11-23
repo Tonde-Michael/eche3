@@ -1,0 +1,2481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Warehouse & Fleet MVP — Supabase Demo</title>
+
+  <!-- FontAwesome Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Leaflet Maps & Routing (OpenStreetMap + OSRM) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css"
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+  <!-- Tailwind (CDN, optional utility classes) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏭</text></svg>">
+
+  <style>
+    :root{
+      --bg:#0f1724;            /* deep slate */
+      --card:#0b1220;          /* slightly lighter */
+      --muted:#9aa8b2;
+      --accent:#10b981;        /* teal-green */
+      --accent-2:#6366f1;      /* indigo */
+      --danger:#ef4444;
+      --glass: rgba(255,255,255,0.03);
+      --glass-2: rgba(255,255,255,0.02);
+      --radius:12px;
+      --maxw:1200px;
+      --gap:16px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #dbeafe;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071025 0%, #081822 60%);-webkit-font-smoothing:antialiased}
+    .app{max-width:var(--maxw);margin:28px auto;padding:20px;display:grid;grid-template-columns:260px 1fr;gap:var(--gap);min-height:80vh}
+    /* SIDEBAR */
+    .sidebar{background:linear-gradient(180deg,var(--card), rgba(6,10,16,0.8));border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px}
+    .brand{display:flex;align-items:center;gap:10px}
+    .logo {width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 6px 20px rgba(16,185,129,0.08)}
+    .brand h1{font-size:16px;margin:0}
+    .muted{color:var(--muted);font-size:13px}
+    nav{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;color:var(--muted);cursor:pointer}
+    .nav-item.active{background:linear-gradient(90deg, rgba(99,102,241,0.12), rgba(16,185,129,0.06));color: #e6eef9}
+    .nav-item i{width:18px;text-align:center}
+    .sidebar .small{font-size:12px;color:var(--muted);margin-top:auto}
+    .user-mini{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:var(--glass-2)}
+    .avatar{width:38px;height:38px;border-radius:9px;background:linear-gradient(180deg,#0ea5a4,#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:700}
+
+    /* MAIN AREA */
+    .main{display:flex;flex-direction:column;gap:16px}
+    header.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .search{flex:1;display:flex;align-items:center;gap:10px;background:var(--glass);padding:10px;border-radius:12px}
+    .search input{flex:1;background:transparent;border:0;color:inherit;outline:none}
+    .actions{display:flex;gap:8px;align-items:center}
+    .btn{padding:9px 12px;border-radius:10px;background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#041022;border:0;cursor:pointer;box-shadow:0 6px 18px rgba(99,102,241,0.12);font-weight:600}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:12px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .stat{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02))}
+    .stat .num{font-size:20px;font-weight:700}
+    .two-col{display:grid;grid-template-columns:1fr 380px;gap:12px;align-items:start}
+
+    /* PRODUCT LIST */
+    .products{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+    .product{padding:12px;border-radius:10px;background:var(--glass);display:flex;flex-direction:column;gap:8px}
+    .product .meta{display:flex;justify-content:space-between;align-items:center}
+    .product .title{font-weight:700}
+    .badge{font-size:12px;padding:6px;border-radius:8px;background:rgba(255,255,255,0.03)}
+    .stock-low{background:linear-gradient(90deg, rgba(239,68,68,0.12), rgba(239,68,68,0.03));color:var(--danger)}
+
+    /* TABLES */
+    table{width:100%;border-collapse:collapse;color:var(--muted);font-size:14px}
+    th,td{text-align:left;padding:10px;border-bottom:1px dashed rgba(255,255,255,0.02)}
+    th{color:var(--muted);font-weight:600;font-size:13px}
+    .row-actions button{margin-right:6px}
+
+    /* FORMS */
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type="text"], input[type="number"], select, textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit}
+    textarea{min-height:80px;resize:vertical}
+
+    /* MODAL */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,12,0.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:80}
+    .modal{background:linear-gradient(180deg,#081224,#061222);padding:18px;border-radius:12px;max-width:720px;width:100%}
+    .modal.show{display:block}
+
+    /* MULTI-PRODUCT REQUEST STYLES */
+    .product-item{display:flex;gap:8px;align-items:center;padding:8px;background:var(--glass);border-radius:8px;margin-bottom:8px}
+    .product-item select{flex:2}
+    .product-item input{flex:1}
+    .product-item button{flex:0 0 auto}
+
+    /* LOGIN SCREEN (centered overlay) */
+    .login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:90}
+    .login-card{width:420px;background:linear-gradient(180deg,#071229,#061125);padding:26px;border-radius:14px;box-shadow:0 20px 50px rgba(2,6,23,0.6)}
+    .logo-large{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+    .logo-large .logo{width:54px;height:54px;border-radius:12px;font-size:22px}
+
+    footer{color:var(--muted);font-size:13px;text-align:center;padding:12px;margin-top:6px}
+
+    /* MAP CONTAINERS */
+    #driverMap, #adminMap { width:100%; height:260px; border-radius:10px; overflow:hidden; }
+
+    /* responsive */
+    @media (max-width:980px){
+      .app{grid-template-columns:1fr; padding:12px}
+      .two-col{grid-template-columns:1fr}
+      .grid{grid-template-columns:repeat(2,1fr)}
+      .products{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+    }
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="logo-large">
+        <div class="logo"><i class="fa-solid fa-warehouse"></i></div>
+        <div>
+          <h2 style="margin:0">Warehouse & Fleet — Demo</h2>
+          <div class="muted">Supabase Backend — Live Data</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <label>User ID</label>
+        <input id="loginUser" type="text" placeholder="e.g. EMP001 or ADMIN01">
+      </div>
+      <div style="margin-top:12px">
+        <label>Password</label>
+        <input id="loginPass" type="password" placeholder="demo password">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+        <button class="btn" id="btnLogin"><i class="fa-solid fa-right-to-bracket"></i>&nbsp;Sign in</button>
+        <button class="btn ghost" id="btnSeedDemo"><i class="fa-solid fa-database"></i>&nbsp;Seed demo data</button>
+        <div style="margin-left:auto;color:var(--muted);font-size:13px">Try: <strong>ADMIN01</strong> / <strong>WARE01</strong> / <strong>EMP001</strong> / <strong>DRV001</strong></div>
+      </div>
+
+      <div style="margin-top:14px;color:var(--muted);font-size:13px">
+        This app is now connected to Supabase. All data is stored in the cloud.
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="app" style="display:none">
+    <!-- Sidebar -->
+    <aside class="sidebar card">
+      <div class="brand">
+        <div class="logo"><i class="fa-solid fa-boxes-stacked"></i></div>
+        <div>
+          <h1>StockFlow</h1>
+          <div class="muted">Warehouse & Fleet MVP</div>
+        </div>
+      </div>
+
+      <nav id="nav">
+        <div class="nav-item active" data-view="dashboard"><i class="fa-solid fa-chart-line"></i> Dashboard</div>
+        <div class="nav-item" data-view="products"><i class="fa-solid fa-sitemap"></i> Products</div>
+        <div class="nav-item" data-view="requests"><i class="fa-solid fa-file-lines"></i> <span id="requestsNavText">Requests</span></div>
+        <div class="nav-item" data-view="fleet"><i class="fa-solid fa-truck"></i> Fleet</div>
+        <div class="nav-item" data-view="reports"><i class="fa-solid fa-chart-pie"></i> Reports</div>
+        <div class="nav-item" data-view="users"><i class="fa-solid fa-users"></i> Users</div>
+      </nav>
+
+      <div class="small">
+        <div class="user-mini">
+          <div class="avatar" id="sidebarAvatar">A</div>
+          <div>
+            <div id="sidebarName">Anonymous</div>
+            <div class="muted" id="sidebarRole">Role</div>
+          </div>
+        </div>
+        <div style="margin-top:10px" class="muted">Connected to <strong>Supabase</strong></div>
+      </div>
+    </aside>
+
+    <!-- Main area -->
+    <main class="main">
+      <header class="top card">
+        <div style="display:flex;gap:12px;width:100%;align-items:center">
+          <div class="search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="globalSearch" placeholder="Search products, requests or employees...">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn ghost" id="btnToggleSidebar"><i class="fa-solid fa-bars"></i></button>
+            <button class="btn ghost" id="btnLogout"><i class="fa-solid fa-right-from-bracket"></i>&nbsp;Logout</button>
+          </div>
+        </div>
+
+        <div class="actions">
+          <div style="text-align:right;margin-right:6px">
+            <div class="muted" id="welcomeLine">Welcome</div>
+            <div style="font-weight:700" id="welcomeName">User</div>
+          </div>
+          <button class="btn" id="btnQuickAdd"><i class="fa-solid fa-plus"></i>&nbsp;New Request</button>
+        </div>
+      </header>
+
+      <!-- Dashboard view -->
+      <section id="view-dashboard" class="card">
+        <div class="two-col">
+          <div>
+            <div class="grid" style="margin-bottom:12px">
+              <div class="stat">
+                <div class="muted">Total Products</div>
+                <div class="num" id="statProducts">0</div>
+                <div class="muted" id="statTopProduct">Top: —</div>
+              </div>
+              <div class="stat">
+                <div class="muted" id="statRequestsLabel">Total Requests</div>
+                <div class="num" id="statRequests">0</div>
+                <div class="muted" id="statPending">Pending: 0</div>
+              </div>
+              <div class="stat">
+                <div class="muted">Fleet Activities</div>
+                <div class="num" id="statFleet">0</div>
+                <div class="muted" id="statLastFleet">Last: —</div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-bottom:12px">
+              <h3 style="margin:0 0 12px 0">Products</h3>
+              <div class="products" id="dashProducts"></div>
+            </div>
+
+            <div class="card">
+              <h3 style="margin:0 0 12px 0" id="recentRequestsTitle">Recent Requests</h3>
+              <table>
+                <thead><tr><th>Request ID</th><th>Product</th><th>Qty</th><th>Status</th><th>Delivery</th><th>Action</th></tr></thead>
+                <tbody id="recentRequests"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <aside>
+            <div class="card" style="margin-bottom:12px">
+              <h4 style="margin:0 0 12px 0">Quick Actions</h4>
+              <button class="btn" onclick="showView('products')"><i class="fa-solid fa-sitemap"></i>&nbsp;View Products</button>
+              <div style="height:8px"></div>
+              <button class="btn ghost" onclick="showView('requests')"><i class="fa-solid fa-file-lines"></i>&nbsp;<span id="quickRequestsText">My Requests</span></button>
+              <div style="height:8px"></div>
+              <button class="btn ghost" onclick="showView('reports')"><i class="fa-solid fa-chart-simple"></i>&nbsp;View Reports</button>
+            </div>
+
+            <div class="card">
+              <h4 style="margin:0 0 12px 0" id="trendsTitle">Trends</h4>
+              <canvas id="trendChart" height="200"></canvas>
+            </div>
+
+            <div class="card" id="driverMapCard" style="margin-top:12px; display:none;">
+              <h4 style="margin:0 0 12px 0">Route Map</h4>
+              <div id="driverMap"></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- Products view -->
+      <section id="view-products" class="card" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0">Products</h3>
+          <div style="display:flex;gap:8px" id="productManagementButtons">
+            <!-- Buttons will be shown/hidden based on user role -->
+          </div>
+        </div>
+
+        <div class="products" id="productList"></div>
+
+        <div style="margin-top:12px" class="card">
+          <h4 style="margin:0 0 12px 0">All Products (table)</h4>
+          <table>
+            <thead><tr><th>Product</th><th>Category</th><th>Stock</th><th>Added</th><th id="productsActionsHeader">Actions</th></tr></thead>
+            <tbody id="productTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Requests view -->
+      <section id="view-requests" class="card" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0" id="requestsTitle">Product Requests</h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn" id="btnNewRequest"><i class="fa-solid fa-plus"></i>&nbsp;New Request</button>
+            <select id="filterRequests" style="padding:8px;border-radius:8px;background:transparent;color:inherit;">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="denied">Denied</option>
+            </select>
+          </div>
+        </div>
+
+        <table>
+          <thead><tr><th>ID</th><th>Products</th><th>Total Qty</th><th>Delivery Needed</th><th>Destination</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="requestsTable"></tbody>
+        </table>
+      </section>
+
+      <!-- Fleet view -->
+      <section id="view-fleet" class="card" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0">Fleet Activities</h3>
+          <button class="btn" id="btnAddFleet"><i class="fa-solid fa-truck-fast"></i>&nbsp;Add Activity</button>
+        </div>
+
+        <div class="card" style="margin-bottom:12px" id="fleetAdminForm">
+          <h4 style="margin:0 0 12px 0">Log Activity</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <label>Vehicle</label>
+              <select id="fleetVehicle"></select>
+            </div>
+            <div>
+              <label>Driver</label>
+              <select id="fleetDriver"></select>
+            </div>
+            <div>
+              <label>Activity Type</label>
+              <select id="fleetType">
+                <option>Delivery</option>
+                <option>Pickup</option>
+                <option>Transfer</option>
+                <option>Maintenance</option>
+                <option>Special</option>
+              </select>
+            </div>
+            <div>
+              <label>Related Request</label>
+              <select id="fleetRequest">
+                <option value="">None</option>
+              </select>
+            </div>
+            <div style="grid-column:1/-1">
+              <label>Description / Notes</label>
+              <textarea id="fleetNotes" placeholder="Details about this trip or maintenance..."></textarea>
+            </div>
+            <div style="grid-column:1/-1;text-align:right">
+              <button class="btn" id="btnSaveFleet">Save Activity</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin:0 0 12px 0">All Activities</h4>
+          <table>
+            <thead><tr><th>ID</th><th>Vehicle</th><th>Driver</th><th>Type</th><th>Date</th><th>Request</th><th>Destination</th><th>Status</th></tr></thead>
+            <tbody id="fleetTable"></tbody>
+          </table>
+        </div>
+
+        <div class="card" id="adminMapCard" style="margin-top:12px; display:none;">
+          <h4 style="margin:0 0 12px 0">Fleet Map</h4>
+          <div id="adminMap"></div>
+        </div>
+      </section>
+
+      <!-- Reports view -->
+      <section id="view-reports" class="card" style="display:none">
+        <h3 style="margin:0 0 12px 0" id="reportsTitle">Reports & Charts</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="card">
+            <h4 style="margin:0 0 12px 0" id="statusChartTitle">Requests by Status</h4>
+            <canvas id="statusChart" height="200"></canvas>
+          </div>
+
+          <div class="card">
+            <h4 style="margin:0 0 12px 0" id="topChartTitle">Top Products</h4>
+            <canvas id="topChart" height="200"></canvas>
+          </div>
+
+          <div class="card" style="grid-column:1/-1">
+            <h4 style="margin:0 0 12px 0" id="timeChartTitle">Requests Over Time</h4>
+            <canvas id="timeChart" height="120"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users view -->
+      <section id="view-users" class="card" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0">Users</h3>
+          <button class="btn" id="btnAddUser"><i class="fa-solid fa-user-plus"></i>&nbsp;Add User</button>
+        </div>
+
+        <table>
+          <thead><tr><th>Code</th><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+          <tbody id="usersTable"></tbody>
+        </table>
+      </section>
+
+      <footer class="muted">Built for demo • Supabase Backend • Live Data Storage</footer>
+    </main>
+  </div>
+
+  <!-- Modal backdrop -->
+  <div id="modal" class="modal-backdrop">
+    <div class="modal card" id="modalContent">
+      <!-- Content is injected by JS -->
+    </div>
+  </div>
+
+  <!-- Supabase Client -->
+  <script type="module">
+    // Import Supabase client
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    // Supabase configuration
+    const SUPABASE_URL = 'https://jjqeyscynavlfjzywprf.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqcWV5c2N5bmF2bGZqenl3cHJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2OTM5NDYsImV4cCI6MjA3OTI2OTk0Nn0.lTF2cWSnAa8xsWi7tWaGCsOAhANkqmuqtMLR9HyPFyY';
+
+    // Create Supabase client
+    try {
+      window.supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+      console.log('✅ Supabase client initialized successfully');
+    } catch (error) {
+      console.error('❌ Error initializing Supabase client:', error);
+    }
+  </script>
+
+<script>
+/* -------------------------
+  CONSTANTS / MAP HELPERS
+   ------------------------- */
+
+// Simple static vehicle list for assigning activities
+const VEHICLES = [
+  { id: 'TRK-001', label: 'Truck 1 • TRK-001' },
+  { id: 'TRK-002', label: 'Truck 2 • TRK-002' },
+  { id: 'VAN-101', label: 'Van 101 • VAN-101' },
+  { id: 'PCK-201', label: 'Pickup 201 • PCK-201' }
+];
+
+let currentUser = null;
+let driverMap, adminMap;
+let driverRouteControl, adminRouteControl;
+let lastKnownPosition = null;
+
+function isEmployee() {
+  return currentUser && currentUser.role === 'employee';
+}
+function isDriver() {
+  return currentUser && currentUser.role === 'driver';
+}
+function isAdmin() {
+  return currentUser && (currentUser.role === 'warehouse_admin' || currentUser.role === 'super_admin');
+}
+
+function ensureMaps() {
+  // Driver map
+  if (isDriver() && document.getElementById('driverMap') && !driverMap && window.L) {
+    driverMap = L.map('driverMap').setView([5.6037, -0.1870], 12); // Accra default
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(driverMap);
+  }
+  // Admin map
+  if (isAdmin() && document.getElementById('adminMap') && !adminMap && window.L) {
+    adminMap = L.map('adminMap').setView([5.6037, -0.1870], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(adminMap);
+  }
+}
+
+async function geocodeToLatLng(query) {
+  const q = (query || '').trim();
+  if (!q) throw new Error('Empty location');
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(q);
+  const res = await fetch(url, {
+    headers: { 'Accept': 'application/json' }
+  });
+  if (!res.ok) throw new Error('Geocoding error');
+  const data = await res.json();
+  if (!data || !data.length) throw new Error('Location not found: ' + query);
+  return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+}
+
+async function showDriverRoute(start, end) {
+  ensureMaps();
+  if (!driverMap || !window.L || !window.L.Routing) return;
+  driverMap.setView(start, 13);
+  if (driverRouteControl) driverMap.removeControl(driverRouteControl);
+  driverRouteControl = L.Routing.control({
+    waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
+    routeWhileDragging: false,
+    addWaypoints: false,
+    show: false,
+    lineOptions: { styles: [{ color: '#10b981', weight: 5 }] },
+    router: L.Routing.osrmv1({
+      serviceUrl: 'https://router.project-osrm.org/route/v1'
+    })
+  }).addTo(driverMap);
+  setTimeout(() => driverMap.invalidateSize(), 300);
+}
+
+async function showAdminRouteForTrip(fleetId, start, end) {
+  ensureMaps();
+  if (!adminMap || !window.L || !window.L.Routing) return;
+  adminMap.setView(start, 7);
+  if (adminRouteControl) adminMap.removeControl(adminRouteControl);
+  adminRouteControl = L.Routing.control({
+    waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
+    routeWhileDragging: false,
+    addWaypoints: false,
+    show: false,
+    lineOptions: { styles: [{ color: '#6366f1', weight: 4 }] },
+    router: L.Routing.osrmv1({
+      serviceUrl: 'https://router.project-osrm.org/route/v1'
+    })
+  }).addTo(adminMap);
+  setTimeout(() => adminMap.invalidateSize(), 300);
+}
+
+function useCurrentLocationForStart() {
+  if (!navigator.geolocation) {
+    alert('Geolocation not supported on this device');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      lastKnownPosition = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
+      const inp = document.getElementById('driver_start');
+      if (inp) inp.value = 'Current GPS position';
+    },
+    err => {
+      console.error('Geolocation error', err);
+      alert('Could not get current location');
+    }
+  );
+}
+
+/* -------------------------
+  SUPABASE DATA FUNCTIONS
+   ------------------------- */
+
+// Users
+async function loadUsers() {
+  try {
+    const { data, error } = await window.supabase.from('users').select('*');
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error loading users:', error);
+    return [];
+  }
+}
+
+async function saveUser(user) {
+  try {
+    const { data, error } = await window.supabase.from('users').upsert(user);
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error saving user:', error);
+    return null;
+  }
+}
+
+async function deleteUserById(code) {
+  try {
+    const { error } = await window.supabase.from('users').delete().eq('code', code);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return false;
+  }
+}
+
+// Products
+async function loadProducts() {
+  try {
+    const { data, error } = await window.supabase.from('products').select('*');
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error loading products:', error);
+    return [];
+  }
+}
+
+async function saveProduct(product) {
+  try {
+    const { data, error } = await window.supabase.from('products').upsert(product);
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error saving product:', error);
+    return null;
+  }
+}
+
+async function deleteProductById(id) {
+  try {
+    const { error } = await window.supabase.from('products').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    return false;
+  }
+}
+
+
+// Add this debug function
+async function debugDataLoading() {
+  console.log('=== DEBUG DATA LOADING ===');
+  
+  try {
+    const products = await loadProducts();
+    console.log('Products loaded:', products.length, products);
+    
+    const requests = await loadRequests();
+    console.log('Requests loaded:', requests.length, requests);
+    
+    const fleet = await loadFleet();
+    console.log('Fleet loaded:', fleet.length, fleet);
+    
+    const users = await loadUsers();
+    console.log('Users loaded:', users.length, users);
+    
+    console.log('Current user:', currentUser);
+    
+    if (currentUser && (currentUser.role === 'employee' || currentUser.role === 'driver')) {
+      const myRequests = requests.filter(r => r.userCode === currentUser.code);
+      console.log('My requests (employee/driver):', myRequests.length, myRequests);
+    }
+  } catch (error) {
+    console.error('Debug data loading error:', error);
+  }
+}
+
+
+// CORRECTED: Save request WITHOUT snake_case conversion
+async function saveRequest(request) {
+  try {
+    // Database columns are already in camelCase (with quotes), so use them directly
+    const dbRequest = {
+      id: request.id,
+      userCode: request.userCode,        // Keep camelCase
+      userName: request.userName,        // Keep camelCase
+      products: request.products,
+      totalQty: request.totalQty,        // Keep camelCase
+      item: request.item,
+      qty: request.qty,
+      notes: request.notes,
+      date: request.date,
+      status: request.status,
+      needDelivery: request.needDelivery, // Keep camelCase
+      destination: request.destination,
+      created_at: request.created_at || new Date().toISOString()
+    };
+
+    console.log('Saving request to database:', dbRequest);
+
+    const { data, error } = await window.supabase
+      .from('requests')
+      .upsert(dbRequest, { returning: "representation" });
+
+    if (error) {
+      console.error("SUPABASE ERROR:", error);
+      alert("Error saving request: " + error.message);
+      return null;
+    }
+
+    console.log('Request saved successfully:', data);
+    return data;
+  } catch (err) {
+    console.error("Request Save Failed ->", err);
+    return null;
+  }
+}
+
+// CORRECTED: Load requests WITHOUT conversion (columns are already camelCase)
+async function loadRequests() {
+  try {
+    const { data, error } = await window.supabase.from('requests').select('*');
+    if (error) throw error;
+    
+    console.log('Raw requests from database:', data);
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error loading requests:', error);
+    return [];
+  }
+}
+
+async function saveFleet(fleet) {
+  try {
+    const { data, error } = await window.supabase.from('fleet').upsert(fleet);
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error saving fleet:', error);
+    return null;
+  }
+}
+
+/* -------------------------
+  AUTH / CURRENT USER
+   ------------------------- */
+
+async function login(userCode, password) {
+  try {
+    const users = await loadUsers();
+    const u = users.find(x => x.code.toUpperCase() === userCode.toUpperCase());
+    
+    if (!u) return { ok: false, msg: 'User not found' };
+    if (u.pass !== password) return { ok: false, msg: 'Incorrect password' };
+    
+    currentUser = u;
+    sessionStorage.setItem('mvp_current', JSON.stringify(u));
+    return { ok: true, user: u };
+  } catch (error) {
+    console.error('Login error:', error);
+    return { ok: false, msg: 'Login failed' };
+  }
+}
+
+function logout() {
+  currentUser = null;
+  sessionStorage.removeItem('mvp_current');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+function loadCurrent() {
+  const s = sessionStorage.getItem('mvp_current');
+  currentUser = s ? JSON.parse(s) : null;
+  return currentUser;
+}
+
+/* -------------------------
+  HELPER UI FUNCTIONS
+   ------------------------- */
+function showView(name) {
+  document.querySelectorAll('[id^="view-"]').forEach(el => {
+    el.style.display = el.id === 'view-' + name ? 'block' : 'none';
+  });
+  
+  // set active nav
+  document.querySelectorAll('.nav-item').forEach(it => {
+    it.classList.toggle('active', it.dataset.view === name);
+  });
+  
+  // update UI based on user role
+  updateUIForUserRole();
+  
+  // update charts or data when views shown
+  if (name === 'reports') renderReports();
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'requests') renderRequests();
+  if (name === 'fleet') renderFleet();
+
+  // Map sizing
+  if (name === 'dashboard' || name === 'fleet') {
+    setTimeout(() => {
+      if (driverMap) driverMap.invalidateSize();
+      if (adminMap) adminMap.invalidateSize();
+    }, 250);
+  }
+}
+
+function updateUIForUserRole() {
+  const employee = isEmployee();
+  const driver = isDriver();
+  const admin = isAdmin();
+
+  // Update navigation text
+  const navText = driver ? 'Delivery Tasks' : (employee ? 'My Requests' : 'Requests');
+  document.getElementById('requestsNavText').innerText = navText;
+  document.getElementById('quickRequestsText').innerText = driver ? 'Assigned Trips' : (employee ? 'My Requests' : 'All Requests');
+  
+  // Products view - hide management buttons for employees & drivers
+  const productButtons = document.getElementById('productManagementButtons');
+  const productsActionsHeader = document.getElementById('productsActionsHeader');
+  
+  if (employee || driver) {
+    productButtons.innerHTML = '';
+    productsActionsHeader.style.display = 'none';
+    document.querySelectorAll('.row-actions').forEach(el => {
+      el.style.display = 'none';
+    });
+  } else {
+    productButtons.innerHTML = `
+      <button class="btn" id="btnAddProduct"><i class="fa-solid fa-plus"></i>&nbsp;Add Product</button>
+      <button class="btn ghost" id="btnImportSample"><i class="fa-solid fa-file-import"></i>&nbsp;Seed Sample Products</button>
+    `;
+    productsActionsHeader.style.display = 'table-cell';
+    document.querySelectorAll('.row-actions').forEach(el => {
+      el.style.display = 'table-cell';
+    });
+  }
+  
+  // Requests view titles
+  const requestsTitle = document.getElementById('requestsTitle');
+  if (driver) {
+    requestsTitle.innerText = 'Delivery Tasks';
+  } else if (employee) {
+    requestsTitle.innerText = 'My Requests';
+  } else {
+    requestsTitle.innerText = 'Product Requests';
+  }
+  
+  // Dashboard updates
+  document.getElementById('statRequestsLabel').innerText = driver ? 'Delivery Requests' : (employee ? 'My Requests' : 'Total Requests');
+  document.getElementById('recentRequestsTitle').innerText = driver ? 'Delivery Tasks' : (employee ? 'My Recent Requests' : 'Recent Requests');
+  
+  // Reports updates
+  document.getElementById('reportsTitle').innerText = driver ? 'My Trips & Requests' : (employee ? 'My Reports' : 'Reports & Charts');
+  document.getElementById('statusChartTitle').innerText = driver ? 'My Delivery Requests by Status' : (employee ? 'My Requests by Status' : 'Requests by Status');
+  document.getElementById('topChartTitle').innerText = driver ? 'My Top Delivery Products' : (employee ? 'My Top Products' : 'Top Products');
+  document.getElementById('timeChartTitle').innerText = driver ? 'My Trips Over Time' : (employee ? 'My Requests Over Time' : 'Requests Over Time');
+  document.getElementById('trendsTitle').innerText = driver ? 'My Trips' : (employee ? 'My Activity' : 'Trends');
+  
+  // Hide fleet and users view from normal employees; drivers see delivery tasks in Requests view
+  const fleetNav = document.querySelector('[data-view="fleet"]');
+  if (fleetNav) fleetNav.style.display = employee || driver ? 'none' : 'flex';
+  const usersNav = document.querySelector('[data-view="users"]');
+  if (usersNav) usersNav.style.display = (currentUser && currentUser.role === 'super_admin') ? 'flex' : 'none';
+
+  // Map cards visibility
+  const driverMapCard = document.getElementById('driverMapCard');
+  if (driverMapCard) driverMapCard.style.display = driver ? 'block' : 'none';
+  const adminMapCard = document.getElementById('adminMapCard');
+  if (adminMapCard) adminMapCard.style.display = admin ? 'block' : 'none';
+
+  // Fleet form only for admins
+  const fleetAdminForm = document.getElementById('fleetAdminForm');
+  if (fleetAdminForm) fleetAdminForm.style.display = admin ? 'block' : 'none';
+  const btnAddFleet = document.getElementById('btnAddFleet');
+  if (btnAddFleet) btnAddFleet.style.display = admin ? 'inline-flex' : 'none';
+
+  // New request buttons hidden for drivers
+  const btnQuickAdd = document.getElementById('btnQuickAdd');
+  if (btnQuickAdd) btnQuickAdd.style.display = driver ? 'none' : 'inline-flex';
+  const btnNewRequest = document.getElementById('btnNewRequest');
+  if (btnNewRequest) btnNewRequest.style.display = driver ? 'none' : 'inline-flex';
+}
+
+function openModal(html) {
+  const modal = document.getElementById('modal');
+  document.getElementById('modalContent').innerHTML = html;
+  modal.style.display = 'flex';
+  modal.classList.add('show');
+}
+
+function closeModal() {
+  const modal = document.getElementById('modal');
+  modal.style.display = 'none';
+  modal.classList.remove('show');
+}
+
+/* -------------------------
+  APPLICATION RENDERS
+   ------------------------- */
+function renderSidebar() {
+  if (!currentUser) return;
+  document.getElementById('sidebarAvatar').innerText = currentUser.code.slice(0, 2);
+  document.getElementById('sidebarName').innerText = currentUser.name;
+  document.getElementById('sidebarRole').innerText = currentUser.role.replace('_', ' ').toUpperCase();
+  document.getElementById('welcomeLine').innerText = (currentUser.role === 'employee') 
+    ? 'Employee Portal' 
+    : (currentUser.role === 'driver')
+      ? 'Driver Console'
+      : (currentUser.role === 'warehouse_admin' ? 'Warehouse Admin' : 'System Admin');
+  document.getElementById('welcomeName').innerText = currentUser.code + ' • ' + currentUser.name;
+  
+  updateUIForUserRole();
+}
+
+async function renderDashboard() {
+  try {
+    console.log('Rendering dashboard...');
+
+    const products = await loadProducts();
+    const requests = await loadRequests();
+    const fleet = await loadFleet();
+    
+    console.log('Dashboard data - Products:', products.length, 'Requests:', requests.length, 'Fleet:', fleet.length);
+    
+    // Update product count
+    document.getElementById('statProducts').innerText = products.length;
+
+    // Filter requests for employees / drivers
+    let userRequests = requests;
+    if (currentUser && (currentUser.role === 'employee' || currentUser.role === 'driver')) {
+      if (currentUser.role === 'employee') {
+        userRequests = requests.filter(r => r.userCode === currentUser.code);
+      } else if (currentUser.role === 'driver') {
+        // Drivers care about approved delivery requests
+        userRequests = requests.filter(r => r.needDelivery && r.status === 'approved');
+      }
+    }
+    
+    document.getElementById('statRequests').innerText = userRequests.length;
+    document.getElementById('statFleet').innerText = fleet.length;
+    
+    const top = products.slice().sort((a, b) => (getProductRequestsCount(b.name) - getProductRequestsCount(a.name)))[0];
+    document.getElementById('statTopProduct').innerText = top ? 'Top: ' + top.name : 'Top: —';
+    document.getElementById('statPending').innerText = 'Pending: ' + userRequests.filter(r => r.status === 'pending').length;
+    document.getElementById('statLastFleet').innerText = fleet.length ? new Date(fleet[fleet.length - 1].created_at).toLocaleString() : '—';
+
+    // small product cards
+    const dashProducts = document.getElementById('dashProducts');
+    dashProducts.innerHTML = '';
+    products.slice(0, 6).forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'product';
+      div.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="width:60px;height:60px;border-radius:8px;background:linear-gradient(180deg,#0ea5a4,#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:700">
+            <i class="fa-solid fa-box"></i>
+          </div>
+          <div style="flex:1">
+            <div class="title">${p.name}</div>
+            <div class="muted">${p.category}</div>
+          </div>
+          <div>
+            <div class="badge ${p.qty < 20 ? 'stock-low' : ''}">${p.qty} in stock</div>
+          </div>
+        </div>
+      `;
+      dashProducts.appendChild(div);
+    });
+
+    // recent requests / delivery tasks table
+    const tbody = document.getElementById('recentRequests');
+    tbody.innerHTML = '';
+    
+    let displayRequests = userRequests.slice().reverse().slice(0, 6);
+    
+    displayRequests.forEach(r => {
+      const tr = document.createElement('tr');
+      const deliveryInfo = r.needDelivery ? 
+        `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--accent);">Yes</span>` : 
+        '<span class="badge">No</span>';
+      
+      // Display products summary
+      const productsSummary = r.products ? 
+        r.products.slice(0, 2).map(p => `${p.name} (${p.qty})`).join(', ') + 
+        (r.products.length > 2 ? ` +${r.products.length - 2} more` : '') : 
+        `${r.item} (${r.qty})`;
+      
+      tr.innerHTML = `
+        <td>${r.id}</td>
+        <td>${productsSummary}</td>
+        <td>${r.totalQty || r.qty}</td>
+        <td><span class="badge">${r.status}</span></td>
+        <td>${deliveryInfo}</td>
+        <td><button class="btn ghost" onclick="viewRequest('${r.id}')"><i class="fa-solid fa-eye"></i></button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // trend chart
+    renderTrendChart();
+  } catch (error) {
+    console.error('Error rendering dashboard:', error);
+    // Set fallback values
+    document.getElementById('statProducts').innerText = 'Error';
+    document.getElementById('statRequests').innerText = 'Error';
+    document.getElementById('statFleet').innerText = 'Error';
+  }
+}
+
+
+async function checkDatabaseSchema() {
+  try {
+    console.log('=== CHECKING DATABASE SCHEMA ===');
+    
+    // Check requests table structure
+    const { data: requestsSample, error: reqError } = await window.supabase
+      .from('requests')
+      .select('*')
+      .limit(1);
+    
+    if (!reqError && requestsSample && requestsSample.length > 0) {
+      console.log('Requests table sample:', requestsSample[0]);
+      console.log('Requests table columns:', Object.keys(requestsSample[0]));
+    }
+    
+    // Check products table structure  
+    const { data: productsSample, error: prodError } = await window.supabase
+      .from('products')
+      .select('*')
+      .limit(1);
+      
+    if (!prodError && productsSample && productsSample.length > 0) {
+      console.log('Products table sample:', productsSample[0]);
+    }
+    
+  } catch (error) {
+    console.error('Error checking database schema:', error);
+  }
+}
+
+
+async function renderProducts() {
+  try {
+    const list = document.getElementById('productList');
+    const table = document.getElementById('productTable');
+    const prods = await loadProducts();
+    
+    list.innerHTML = '';
+    table.innerHTML = '';
+    
+    const employee = isEmployee();
+    const driver = isDriver();
+    
+    prods.forEach(p => {
+      // card view
+      const card = document.createElement('div');
+      card.className = 'product';
+      card.innerHTML = `
+        <div class="meta">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(180deg,#06b6d4,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700"><i class="fa-solid fa-box"></i></div>
+            <div>
+              <div class="title">${p.name}</div>
+              <div class="muted">${p.category}</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div class="badge ${p.qty < 20 ? 'stock-low' : ''}">${p.qty} pcs</div>
+            <div class="muted" style="font-size:12px">${new Date(p.created_at).toLocaleDateString()}</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="color:var(--muted);font-size:13px">${p.id || ''}</div>
+          <div>
+            ${(!employee && !driver) ? `
+              <button class="btn ghost" onclick="openEditProduct('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn ghost" onclick="archiveProduct('${p.id}')"><i class="fa-solid fa-archive"></i></button>
+            ` : ''}
+            ${employee ? `<button class="btn" onclick="quickRequestProduct('${p.id}')"><i class="fa-solid fa-cart-plus"></i></button>` : ''}
+          </div>
+        </div>
+      `;
+      list.appendChild(card);
+
+      // table row
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${p.name}</td>
+        <td>${p.category}</td>
+        <td>${p.qty}</td>
+        <td>${new Date(p.created_at).toLocaleDateString()}</td>
+        <td class="row-actions">
+          ${(!employee && !driver) ? `
+            <button class="btn ghost" onclick="openEditProduct('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn ghost" onclick="archiveProduct('${p.id}')"><i class="fa-solid fa-trash"></i></button>
+          ` : ''}
+        </td>`;
+      table.appendChild(tr);
+    });
+  } catch (error) {
+    console.error('Error rendering products:', error);
+  }
+}
+
+async function renderRequests(filter = 'all') {
+  try {
+    const tbody = document.getElementById('requestsTable');
+    tbody.innerHTML = '';
+
+    const allRequests = (await loadRequests()).slice().reverse();
+
+    // DRIVER VIEW: delivery tasks
+    if (isDriver()) {
+      const fleet = await loadFleet();
+      const deliveryRequests = allRequests.filter(r => r.needDelivery && r.status === 'approved');
+
+      deliveryRequests.forEach(r => {
+        const deliveryInfo = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--accent);">Yes</span>`;
+        const destination = r.destination || '-';
+
+        const productsDisplay = r.products && Array.isArray(r.products)
+          ? r.products.map(p => `${p.name} (${p.qty})`).join('<br>')
+          : `${r.item} (${r.qty})`;
+        const totalQty = r.products && Array.isArray(r.products)
+          ? r.products.reduce((sum, p) => sum + (p.qty || 0), 0)
+          : (r.qty || 0);
+
+        // Find if this request is assigned to this driver in fleet table
+        const relatedTrips = fleet.filter(f => f.requestId === r.id);
+        const myTrip = relatedTrips.find(f =>
+          f.driver_code === currentUser.code ||
+          f.driverName === currentUser.name ||
+          f.driver_name === currentUser.name ||
+          f.plate === currentUser.name
+        );
+
+        let actionsHtml = `
+          <button class="btn ghost" onclick="viewRequest('${r.id}')">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        `;
+
+        if (myTrip) {
+          const tStatus = myTrip.trip_status || myTrip.status || 'assigned';
+          if (tStatus === 'assigned') {
+            actionsHtml += `
+              <button class="btn" onclick="openDriverTripModal('${myTrip.id}')">
+                <i class="fa-solid fa-check"></i> Accept
+              </button>
+              <button class="btn ghost" style="background:transparent;border:1px solid rgba(255,0,0,0.3);color:var(--danger)" onclick="driverRejectTrip('${myTrip.id}')">
+                <i class="fa-solid fa-ban"></i> Reject
+              </button>
+            `;
+          } else if (tStatus === 'in_progress') {
+            actionsHtml += `<span class="badge" style="background: rgba(16,185,129,0.15); color: var(--accent);">In progress</span>`;
+          } else if (tStatus === 'completed') {
+            actionsHtml += `<span class="badge">Completed</span>`;
+          } else if (tStatus === 'rejected') {
+            actionsHtml += `<span class="badge stock-low">You rejected</span>`;
+          }
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.id}</td>
+          <td>${productsDisplay}</td>
+          <td>${totalQty}</td>
+          <td>${deliveryInfo}</td>
+          <td>${destination}</td>
+          <td>${new Date(r.date).toLocaleString()}</td>
+          <td>${r.status}</td>
+          <td>${actionsHtml}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      return;
+    }
+
+    // EMPLOYEE / ADMIN VIEW
+    let requests = allRequests;
+
+    if (isEmployee()) {
+      requests = requests.filter(r => r.userCode === currentUser.code);
+    }
+    
+    const filtered = requests.filter(r => filter === 'all' ? true : r.status === filter);
+    
+    filtered.forEach(r => {
+      const deliveryInfo = r.needDelivery ? 
+        `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--accent);">Yes</span>` : 
+        '<span class="badge">No</span>';
+      
+      const destination = r.destination || '-';
+      
+      // Display products list
+      let productsDisplay = `${r.item} (${r.qty})`;
+      let totalQty = r.qty;
+      
+      if (r.products && Array.isArray(r.products)) {
+        productsDisplay = r.products.map(p => `${p.name} (${p.qty})`).join('<br>');
+        totalQty = r.products.reduce((sum, p) => sum + (p.qty || 0), 0);
+      }
+      
+      const tr = document.createElement('tr');
+
+      tr.innerHTML = `
+        <td>${r.id}</td>
+        <td>${productsDisplay}</td>
+        <td>${totalQty}</td>
+        <td>${deliveryInfo}</td>
+        <td>${destination}</td>
+        <td>${new Date(r.date).toLocaleString()}</td>
+        <td>${r.status}</td>
+        <td>
+            <!-- View button (everyone) -->
+            <button class="btn ghost" onclick="viewRequest('${r.id}')">
+                <i class="fa-solid fa-eye"></i>
+            </button>
+
+            <!-- Employee: Only edit pending own requests -->
+            ${(currentUser.role === 'employee' && r.status === 'pending') 
+              ? `
+                <button class="btn ghost" onclick="editMyRequest('${r.id}')">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+              `
+              : ''
+            }
+
+            <!-- Admins: Approve + Deny -->
+            ${isAdmin() 
+              ? `
+                <button class="btn" onclick="approveRequest('${r.id}')">
+                    <i class="fa-solid fa-check"></i>
+                </button>
+                <button class="btn ghost" style="background:transparent;border:1px solid rgba(255,0,0,0.06);color:var(--danger)" 
+                        onclick="denyRequest('${r.id}')">
+                    <i class="fa-solid fa-ban"></i>
+                </button>
+              `
+              : ''
+            }
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+    });
+  } catch (error) {
+    console.error('Error rendering requests:', error);
+  }
+}
+
+
+
+async function editMyRequest(id) {
+  const requests = await loadRequests();
+  const r = requests.find(x => x.id === id);
+
+  if (!r) return alert("Request not found");
+  if (r.status !== 'pending') return alert("You can only edit pending requests");
+
+  openModal(`
+      <h3>Edit Request ${r.id}</h3>
+      <label>Notes</label>
+      <textarea id="edit_notes">${r.notes || ''}</textarea>
+
+      <div style="margin-top:12px;text-align:right">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="submitEditMyRequest('${id}')">Save</button>
+      </div>
+  `);
+}
+
+async function submitEditMyRequest(id) {
+  const requests = await loadRequests();
+  const r = requests.find(x => x.id === id);
+
+  r.notes = document.getElementById("edit_notes").value;
+
+  await saveRequest(r);
+  closeModal();
+  renderRequests();
+}
+
+
+async function populateFleetFormOptions() {
+  try {
+    const vehicleSelect = document.getElementById('fleetVehicle');
+    const driverSelect = document.getElementById('fleetDriver');
+    const requestSelect = document.getElementById('fleetRequest');
+
+    if (vehicleSelect) {
+      vehicleSelect.innerHTML = '<option value="">Select vehicle</option>' +
+        VEHICLES.map(v => `<option value="${v.id}">${v.label}</option>`).join('');
+    }
+
+    const users = await loadUsers();
+    const drivers = users.filter(u => u.role === 'driver');
+    if (driverSelect) {
+      driverSelect.innerHTML = '<option value="">Select driver</option>' +
+        drivers.map(d => `<option value="${d.code}">${d.name} (${d.code})</option>`).join('');
+    }
+
+    // Related requests: only approved + needDelivery
+    if (requestSelect) {
+      const allRequests = await loadRequests();
+      requestSelect.innerHTML = '<option value="">None</option>';
+      allRequests
+        .filter(r => r.needDelivery && r.status === 'approved')
+        .forEach(r => {
+          const opt = document.createElement('option');
+          const dest = r.destination || r.item;
+          opt.value = r.id;
+          opt.innerText = `${r.id} • ${dest}`;
+          requestSelect.appendChild(opt);
+        });
+    }
+  } catch (e) {
+    console.error('Error populating fleet options', e);
+  }
+}
+
+async function renderFleet() {
+  try {
+    const tbl = document.getElementById('fleetTable');
+    if (!tbl) return;
+    const fleet = await loadFleet();
+    const requests = await loadRequests();
+    
+    tbl.innerHTML = '';
+
+    if (isAdmin()) {
+      await populateFleetFormOptions();
+    } else {
+      const requestSelect = document.getElementById('fleetRequest');
+      if (requestSelect) requestSelect.innerHTML = '<option value="">No access</option>';
+    }
+
+    const visibleFleet = isDriver()
+      ? fleet.filter(f =>
+          f.driver_code === currentUser.code ||
+          f.driverName === currentUser.name ||
+          f.driver_name === currentUser.name ||
+          f.plate === currentUser.name
+        )
+      : fleet;
+
+    visibleFleet.slice().reverse().forEach(f => {
+      const relatedRequest = requests.find(r => r.id === f.requestId);
+      const destination = relatedRequest ? (relatedRequest.destination || relatedRequest.item || '-') : '-';
+
+      const vehicle = f.vehicle_id || f.name || '-';
+      const driver = f.driver_name || f.driverName || f.driver_code || f.plate || '-';
+      const type = f.activityType || f.type || f.status || '-';
+      const tripStatus = f.trip_status || 'assigned';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${f.id}</td>
+        <td>${vehicle}</td>
+        <td>${driver}</td>
+        <td>${type}</td>
+        <td>${new Date(f.created_at || Date.now()).toLocaleString()}</td>
+        <td>${f.requestId || '-'}</td>
+        <td>${destination}</td>
+        <td>${tripStatus}</td>`;
+      tbl.appendChild(tr);
+    });
+  } catch (error) {
+    console.error('Error rendering fleet:', error);
+  }
+}
+
+async function renderUsers() {
+  try {
+    const users = await loadUsers();
+    const tbody = document.getElementById('usersTable');
+    tbody.innerHTML = '';
+    
+    users.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${u.code}</td>
+        <td>${u.name}</td>
+        <td>${u.email}</td>
+        <td>${u.role}</td>
+        <td>
+          <button class="btn ghost" onclick="editUser('${u.code}')"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn ghost" onclick="deleteUser('${u.code}')"><i class="fa-solid fa-trash"></i></button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (error) {
+    console.error('Error rendering users:', error);
+  }
+}
+
+/* -------------------------
+  BUSINESS LOGIC
+   ------------------------- */
+async function getUser(code) {
+  const users = await loadUsers();
+  return users.find(u => u.code === code);
+}
+
+async function getProduct(id) {
+  const products = await loadProducts();
+  return products.find(p => p.id === id);
+}
+
+async function getProductRequestsCount(productName) {
+  const reqs = await loadRequests();
+  return reqs.filter(r => {
+    if (r.products && Array.isArray(r.products)) {
+      return r.products.some(p => p.name === productName);
+    }
+    return r.item === productName;
+  }).reduce((s, r) => {
+    if (r.products && Array.isArray(r.products)) {
+      const product = r.products.find(p => p.name === productName);
+      return s + (product ? product.qty : 0);
+    }
+    return s + (r.qty || 0);
+  }, 0);
+}
+
+async function addProduct(obj) {
+  await saveProduct(obj);
+  renderProducts();
+  renderDashboard();
+}
+
+async function updateProduct(id, patch) {
+  const products = await loadProducts();
+  const product = products.find(p => p.id === id);
+  
+  if (product) {
+    const updatedProduct = { ...product, ...patch };
+    await saveProduct(updatedProduct);
+    renderProducts();
+    renderDashboard();
+  }
+}
+
+async function archiveProduct(id) {
+  if (!confirm('Archive this product?')) return;
+  
+  const success = await deleteProductById(id);
+  if (success) {
+    renderProducts();
+    renderDashboard();
+  } else {
+    alert('Failed to delete product');
+  }
+}
+
+async function createRequest({ userCode, userName, notes, needDelivery = false, destination = '', products = [] }) {
+  const requests = await loadRequests();
+  const newId = 'R-' + (1000 + (requests.length + 1));
+  
+  const totalQty = products.reduce((sum, p) => sum + (p.qty || 0), 0);
+  
+  const req = {
+    id: newId,
+    userCode: userCode,
+    userName: userName,
+    products: products,
+    totalQty: totalQty,
+    // For backward compatibility
+    item: products.length > 0 ? products[0].name : '',
+    qty: totalQty,
+    notes: notes || '',
+    date: new Date().toISOString(),
+    status: 'pending',
+    needDelivery: Boolean(needDelivery),
+    destination: destination || '',
+    created_at: new Date().toISOString()
+  };
+  
+  console.log('Creating request:', req);  // Debug log
+  await saveRequest(req);
+  renderRequests(document.getElementById('filterRequests').value);
+  renderDashboard();
+  alert('Request submitted: ' + newId);
+}
+
+
+async function approveRequest(id) {
+  const requests = await loadRequests();
+  const r = requests.find(x => x.id === id);
+  
+  if (!r) return alert('Not found');
+  if (!confirm('Approve request ' + id + '?')) return;
+  
+  r.status = 'approved';
+  await saveRequest(r);
+  
+  renderRequests(document.getElementById('filterRequests').value);
+  renderDashboard();
+}
+
+async function denyRequest(id) {
+  const requests = await loadRequests();
+  const r = requests.find(x => x.id === id);
+  
+  if (!r) return alert('Not found');
+  if (!confirm('Deny request ' + id + '?')) return;
+  
+  r.status = 'denied';
+  await saveRequest(r);
+  
+  renderRequests(document.getElementById('filterRequests').value);
+  renderDashboard();
+}
+
+/* -------------------------
+  FLEET LOGIC
+   ------------------------- */
+async function saveFleetActivity() {
+  if (!isAdmin()) return alert('Only admins can log fleet activities');
+
+  const vehicleId = document.getElementById('fleetVehicle').value;
+  const driverCode = document.getElementById('fleetDriver').value;
+  const activityType = document.getElementById('fleetType').value;
+  const requestId = document.getElementById('fleetRequest').value;
+  const notes = document.getElementById('fleetNotes').value;
+  
+  if (!vehicleId) return alert('Select a vehicle.');
+  if (!driverCode && (activityType === 'Delivery' || activityType === 'Pickup' || activityType === 'Transfer')) {
+    return alert('Select a driver for this activity.');
+  }
+  
+  const fleet = await loadFleet();
+  const id = 'F-' + (fleet.length + 1);
+
+  const users = await loadUsers();
+  const driverUser = users.find(u => u.code === driverCode);
+  
+  await saveFleet({
+    id,
+    vehicle_id: vehicleId,
+    name: vehicleId,
+    driver_code: driverCode || null,
+    driver_name: driverUser ? driverUser.name : null,
+    driverName: driverUser ? driverUser.name : null,
+    plate: driverUser ? driverUser.name : null,
+    activityType,
+    type: activityType,
+    status: 'assigned',
+    trip_status: 'assigned',
+    requestId: requestId || null,
+    notes
+  });
+  
+  renderFleet();
+  renderDashboard();
+}
+
+/* -------------------------
+  DRIVER TRIP ACTIONS
+   ------------------------- */
+async function openDriverTripModal(fleetId) {
+  const fleet = await loadFleet();
+  const trip = fleet.find(f => f.id === fleetId);
+  if (!trip) return alert('Trip not found');
+
+  const requests = await loadRequests();
+  const r = requests.find(x => x.id === trip.requestId);
+  const destText = (r && r.destination) ? r.destination : (r ? r.item : '');
+
+  openModal(`
+    <h3>Start Trip for ${trip.id}</h3>
+    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label>Vehicle</label><input disabled value="${trip.vehicle_id || trip.name || ''}"></div>
+      <div><label>Request</label><input disabled value="${trip.requestId || ''}"></div>
+      <div style="grid-column:1/-1"><label>Destination</label><input id="driver_dest" value="${escapeHtml(destText)}"></div>
+      <div><label>Starting location</label><input id="driver_start" placeholder="e.g. Warehouse yard"></div>
+      <div><label>Fuel in tank (litres)</label><input id="driver_fuel" type="number" min="0" step="0.1"></div>
+      <div style="grid-column:1/-1">
+        <button class="btn ghost" type="button" onclick="useCurrentLocationForStart()">Use my current GPS location</button>
+      </div>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="driverStartTrip('${trip.id}')">Go</button>
+    </div>
+  `);
+}
+
+async function driverStartTrip(fleetId) {
+  const fuel = parseFloat(document.getElementById('driver_fuel').value || '0');
+  const startText = (document.getElementById('driver_start').value || '').trim();
+  const destText = (document.getElementById('driver_dest').value || '').trim();
+
+  if (!destText) return alert('Destination is required');
+
+  try {
+    let startCoords;
+    if (lastKnownPosition && startText === 'Current GPS position') {
+      startCoords = [lastKnownPosition.lat, lastKnownPosition.lng];
+    } else if (startText) {
+      startCoords = await geocodeToLatLng(startText);
+    } else {
+      // Fallback to destination city vicinity if no start specified
+      startCoords = await geocodeToLatLng(destText);
+    }
+    const destCoords = await geocodeToLatLng(destText);
+
+    await showDriverRoute(startCoords, destCoords);
+    await showAdminRouteForTrip(fleetId, startCoords, destCoords);
+
+    const fleet = await loadFleet();
+    const trip = fleet.find(f => f.id === fleetId);
+    if (trip) {
+      const updated = {
+        ...trip,
+        trip_status: 'in_progress',
+        status: trip.status || 'in_progress',
+        fuel_start: fuel,
+        start_location: startText || 'Not specified',
+        end_location: destText,
+        start_lat: startCoords[0],
+        start_lng: startCoords[1],
+        end_lat: destCoords[0],
+        end_lng: destCoords[1]
+      };
+      await saveFleet(updated);
+    }
+
+    closeModal();
+    renderFleet();
+    renderDashboard();
+    showView('dashboard');
+  } catch (err) {
+    console.error(err);
+    alert('Could not calculate route: ' + err.message);
+  }
+}
+
+async function driverRejectTrip(fleetId) {
+  if (!confirm('Reject this trip?')) return;
+  const fleet = await loadFleet();
+  const trip = fleet.find(f => f.id === fleetId);
+  if (!trip) return alert('Trip not found');
+  const updated = { ...trip, trip_status: 'rejected' };
+  await saveFleet(updated);
+  renderRequests(document.getElementById('filterRequests').value);
+  renderFleet();
+}
+
+/* -------------------------
+  USERS LOGIC
+   ------------------------- */
+async function addUser(u) {
+  const users = await loadUsers();
+  if (users.some(x => x.code === u.code)) return alert('User code exists');
+  
+  await saveUser(u);
+  renderUsers();
+}
+
+/* -------------------------
+  UI EVENTS / BINDINGS
+   ------------------------- */
+</script>
+<script>
+// Seed demo data button
+document.getElementById('btnSeedDemo').addEventListener('click', async () => {
+  try {
+    const sampleProducts = [
+      { name: 'Cement Bag 50kg', category: 'Building', qty: 200 },
+      { name: 'Steel Rod 10mm', category: 'Materials', qty: 150 },
+      { name: 'Safety Helmet', category: 'PPE', qty: 80 },
+      { name: 'High-Vis Jacket', category: 'PPE', qty: 35 },
+      { name: 'Survey Tape 30m', category: 'Equipment', qty: 12 }
+    ];
+    
+    for (const product of sampleProducts) {
+      await saveProduct(product);
+    }
+    
+    alert('Sample products added to Supabase');
+    renderProducts();
+  } catch (error) {
+    console.error('Error seeding demo data:', error);
+    alert('Failed to seed demo data');
+  }
+});
+
+// Login
+document.getElementById('btnLogin').addEventListener('click', async () => {
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const res = await login(u, p);
+  
+  if (!res.ok) return alert(res.msg);
+  
+  // Check database schema on login
+  await checkDatabaseSchema();
+  
+  // show app
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+  await loadApp();
+});
+
+// Logout
+document.getElementById('btnLogout').addEventListener('click', () => {
+  if (confirm('Log out?')) logout();
+});
+
+// Nav
+document.querySelectorAll('.nav-item').forEach(it => it.addEventListener('click', () => showView(it.dataset.view)));
+
+// Global search
+document.getElementById('globalSearch').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('#productList .product').forEach(card => {
+    card.style.display = (card.innerText.toLowerCase().includes(q)) ? 'block' : 'none';
+  });
+});
+
+// quick add / new request buttons
+const btnQuickAddEl = document.getElementById('btnQuickAdd');
+if (btnQuickAddEl) {
+  btnQuickAddEl.addEventListener('click', () => {
+    if (!currentUser || currentUser.role !== 'employee') return;
+    openNewRequestModal(currentUser.code, currentUser.name);
+  });
+}
+
+const btnNewRequestEl = document.getElementById('btnNewRequest');
+if (btnNewRequestEl) {
+  btnNewRequestEl.addEventListener('click', () => {
+    if (!currentUser || currentUser.role !== 'employee') return;
+    openNewRequestModal(currentUser.code, currentUser.name);
+  });
+}
+
+// Add product buttons (delegated)
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'btnAddProduct') {
+    openAddProductModal();
+  }
+  if (e.target.id === 'btnImportSample') {
+    seedSampleProducts();
+  }
+});
+
+// Fleet buttons
+const btnAddFleetEl = document.getElementById('btnAddFleet');
+if (btnAddFleetEl) btnAddFleetEl.addEventListener('click', () => {
+  const v = document.getElementById('fleetVehicle');
+  if (v) v.focus();
+});
+const btnSaveFleetEl = document.getElementById('btnSaveFleet');
+if (btnSaveFleetEl) btnSaveFleetEl.addEventListener('click', saveFleetActivity);
+
+// Requests filter
+document.getElementById('filterRequests').addEventListener('change', (e) => renderRequests(e.target.value));
+
+// Add user button
+const btnAddUserEl = document.getElementById('btnAddUser');
+if (btnAddUserEl) btnAddUserEl.addEventListener('click', () => openAddUserModal());
+
+// Sidebar toggle
+document.getElementById('btnToggleSidebar').addEventListener('click', () => {
+  const side = document.querySelector('.sidebar');
+  side.style.display = side.style.display === 'none' ? 'flex' : 'none';
+});
+</script>
+<script>
+/* -------------------------
+  MODALS / FORMS
+   ------------------------- */
+
+function openAddProductModal() {
+  openModal(`
+    <h3>Add Product</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+      <div><label>Product Name</label><input id="m_p_name" placeholder="Product name"></div>
+      <div><label>Category</label><input id="m_p_cat" placeholder="Category"></div>
+      <div><label>Stock Quantity</label><input id="m_p_stock" type="number" value="0"></div>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="submitAddProduct()">Save</button>
+    </div>
+  `);
+}
+
+async function submitAddProduct() {
+  const name = document.getElementById('m_p_name').value.trim();
+  const cat = document.getElementById('m_p_cat').value.trim() || 'General';
+  const qty = Number(document.getElementById('m_p_stock').value) || 0;
+  
+  if (!name) return alert('Provide product name');
+  
+  await addProduct({
+    name,
+    category: cat,
+    qty
+  });
+  
+  closeModal();
+}
+
+function openEditProduct(id) {
+  getProduct(id).then(p => {
+    if (!p) return alert('Product not found');
+    
+    openModal(`
+      <h3>Edit Product</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+        <div><label>Product ID</label><input id="m_e_id" value="${p.id}" disabled></div>
+        <div><label>Category</label><input id="m_e_cat" value="${escapeHtml(p.category)}"></div>
+        <div style="grid-column:1/-1"><label>Name</label><input id="m_e_name" value="${escapeHtml(p.name)}"></div>
+        <div><label>Stock</label><input id="m_e_stock" type="number" value="${p.qty}"></div>
+      </div>
+      <div style="margin-top:12px;text-align:right">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="submitEditProduct('${p.id}')">Save</button>
+      </div>
+    `);
+  });
+}
+
+async function submitEditProduct(id) {
+  const cat = document.getElementById('m_e_cat').value.trim();
+  const name = document.getElementById('m_e_name').value.trim();
+  const qty = Number(document.getElementById('m_e_stock').value) || 0;
+  
+  await updateProduct(id, { category: cat, name, qty });
+  closeModal();
+}
+
+async function openNewRequestModal(userCode, userName) {
+  const products = await loadProducts();
+  const productOptions = products.map(p => 
+    `<option value="${p.id}" data-stock="${p.qty}">${p.name} (${p.qty} in stock)</option>`
+  ).join('');
+  
+  openModal(`
+    <h3>New Product Request</h3>
+    <div style="margin-top:12px">
+      <div id="productItems">
+        <div class="product-item">
+          <select class="product-select" onchange="updateProductStock(this)">
+            <option value="">Select Product</option>
+            ${productOptions}
+          </select>
+          <input type="number" class="product-qty" placeholder="Qty" min="1" value="1">
+          <button class="btn ghost" onclick="removeProductItem(this)" style="color: var(--danger)"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>
+      <button class="btn ghost" onclick="addProductItem()" style="margin-top: 8px; width: 100%">
+        <i class="fa-solid fa-plus"></i> Add Another Product
+      </button>
+    </div>
+    
+    <div style="margin-top:12px">
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="m_r_needDelivery" style="width:auto;">
+        Need delivery for this request?
+      </label>
+    </div>
+    
+    <div style="margin-top:8px; display:none;" id="deliveryDetails">
+      <label>Delivery Destination</label>
+      <textarea id="m_r_destination" placeholder="Enter location name or GhanaPostGPS address..."></textarea>
+    </div>
+    
+    <div style="margin-top:12px">
+      <label>Notes (optional)</label>
+      <textarea id="m_r_notes"></textarea>
+    </div>
+    
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="submitNewRequest('${userCode}', '${userName}')">Submit Request</button>
+    </div>
+  `);
+
+  document.getElementById('m_r_needDelivery').addEventListener('change', function() {
+    document.getElementById('deliveryDetails').style.display = this.checked ? 'block' : 'none';
+  });
+}
+
+function addProductItem() {
+  const productItems = document.getElementById('productItems');
+  const firstItem = productItems.querySelector('.product-item');
+  const productOptions = firstItem.querySelector('.product-select').innerHTML;
+  
+  const newItem = document.createElement('div');
+  newItem.className = 'product-item';
+  newItem.innerHTML = `
+    <select class="product-select" onchange="updateProductStock(this)">
+      ${productOptions}
+    </select>
+    <input type="number" class="product-qty" placeholder="Qty" min="1" value="1">
+    <button class="btn ghost" onclick="removeProductItem(this)" style="color: var(--danger)"><i class="fa-solid fa-trash"></i></button>
+  `;
+  
+  productItems.appendChild(newItem);
+}
+
+function removeProductItem(button) {
+  const productItems = document.getElementById('productItems');
+  if (productItems.children.length > 1) {
+    button.closest('.product-item').remove();
+  } else {
+    alert('You need at least one product in the request.');
+  }
+}
+
+function updateProductStock(select) {
+  const selectedOption = select.options[select.selectedIndex];
+  const stock = selectedOption.getAttribute('data-stock');
+  const qtyInput = select.closest('.product-item').querySelector('.product-qty');
+  
+  if (stock) {
+    qtyInput.max = stock;
+    if (parseInt(qtyInput.value) > parseInt(stock)) {
+      qtyInput.value = stock;
+    }
+  }
+}
+
+async function submitNewRequest(userCode, userName) {
+  const productItems = document.getElementById('productItems').querySelectorAll('.product-item');
+  const products = [];
+  
+  for (const item of productItems) {
+    const select = item.querySelector('.product-select');
+    const qtyInput = item.querySelector('.product-qty');
+    
+    const productId = select.value;
+    const qty = parseInt(qtyInput.value) || 0;
+    
+    if (!productId) {
+      alert('Please select a product for all items.');
+      return;
+    }
+    
+    if (qty < 1) {
+      alert('Please enter a valid quantity for all products.');
+      return;
+    }
+    
+    const product = await getProduct(productId);
+    if (!product) {
+      alert('Selected product not found.');
+      return;
+    }
+    
+    if (qty > product.qty) {
+      alert(`Insufficient stock for ${product.name}. Available: ${product.qty}`);
+      return;
+    }
+    
+    products.push({
+      id: product.id,
+      name: product.name,
+      qty: qty
+    });
+  }
+  
+  if (products.length === 0) {
+    alert('Please add at least one product to the request.');
+    return;
+  }
+  
+  const notes = document.getElementById('m_r_notes').value || '';
+  const needDelivery = document.getElementById('m_r_needDelivery').checked;
+  const destination = needDelivery ? document.getElementById('m_r_destination').value : '';
+  
+  if (needDelivery && !destination.trim()) {
+    alert('Please enter delivery destination.');
+    return;
+  }
+  
+  console.log('Submitting request with userCode:', userCode, 'userName:', userName);
+  
+  await createRequest({ 
+    userCode: userCode,
+    userName: userName, 
+    notes, 
+    needDelivery, 
+    destination, 
+    products 
+  });
+  closeModal();
+}
+
+function quickRequestProduct(productId) {
+  getProduct(productId).then(p => {
+    if (!p) return alert('Product not found');
+    
+    openModal(`
+      <h3>Quick Request</h3>
+      <div style="margin-top:12px">
+        <div class="muted">Product: <strong>${escapeHtml(p.name)}</strong></div>
+        <div style="margin-top:8px"><label>Quantity</label><input id="m_q_qty" type="number" value="1" max="${p.qty}"></div>
+        <div style="margin-top:8px">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="m_q_needDelivery" style="width:auto;">
+            Need delivery for this request?
+          </label>
+        </div>
+        <div style="margin-top:8px; display:none;" id="quickDeliveryDetails">
+          <label>Delivery Destination</label>
+          <textarea id="m_q_destination" placeholder="Enter location name or GhanaPostGPS address..."></textarea>
+        </div>
+      </div>
+      <div style="margin-top:12px;text-align:right">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="submitQuickRequest('${productId}')">Request</button>
+      </div>
+    `);
+
+    document.getElementById('m_q_needDelivery').addEventListener('change', function() {
+      document.getElementById('quickDeliveryDetails').style.display = this.checked ? 'block' : 'none';
+    });
+  });
+}
+
+
+async function submitQuickRequest(productId) {
+  const qty = Number(document.getElementById('m_q_qty').value) || 1;
+  const userCode = currentUser ? currentUser.code : 'EMP001';
+  const userName = currentUser ? currentUser.name : 'Anonymous';
+  const needDelivery = document.getElementById('m_q_needDelivery').checked;
+  const destination = needDelivery ? document.getElementById('m_q_destination').value : '';
+  
+  if (needDelivery && !destination.trim()) {
+    alert('Please enter delivery destination');
+    closeModal();
+    return;
+  }
+  
+  const p = await getProduct(productId);
+  if (!p) {
+    alert('Product not found');
+    closeModal();
+    return;
+  }
+  
+  if (qty > p.qty) {
+    alert(`Insufficient stock. Available: ${p.qty}`);
+    return;
+  }
+  
+  console.log('Quick request - userCode:', userCode, 'userName:', userName);
+  
+  await createRequest({ 
+    userCode: userCode,
+    userName: userName, 
+    needDelivery, 
+    destination, 
+    products: [{
+      id: p.id,
+      name: p.name,
+      qty: qty
+    }]
+  });
+  
+  closeModal();
+}
+
+async function viewRequest(id) {
+  const requests = await loadRequests();
+  const r = requests.find(x => x.id === id);
+  
+  if (!r) return alert('Not found');
+  
+  const deliveryInfo = r.needDelivery ? 
+    `<div><label>Delivery Destination</label><input disabled value="${r.destination || 'Not specified'}"></div>` : 
+    '';
+  
+  // Display products
+  let productsDisplay = `<div><label>Product</label><input disabled value="${r.item} (${r.qty})"></div>`;
+  if (r.products && Array.isArray(r.products)) {
+    productsDisplay = r.products.map(p => 
+      `<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; margin-bottom: 8px;">
+         <input disabled value="${p.name}">
+         <input disabled value="Qty: ${p.qty}">
+       </div>`
+    ).join('');
+    productsDisplay = `<div><label>Products</label>${productsDisplay}</div>`;
+  }
+  
+  openModal(`
+    <h3>Request ${r.id}</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+      <div><label>Employee</label><input disabled value="${r.userName} • ${r.userCode}"></div>
+      ${productsDisplay}
+      <div><label>Total Quantity</label><input disabled value="${r.totalQty || r.qty}"></div>
+      <div><label>Status</label><input disabled value="${r.status}"></div>
+      <div><label>Delivery Needed</label><input disabled value="${r.needDelivery ? 'Yes' : 'No'}"></div>
+      ${deliveryInfo}
+      <div style="grid-column:1/-1"><label>Notes</label><textarea disabled>${escapeHtml(r.notes || '')}</textarea></div>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      ${(currentUser && currentUser.role !== 'employee' && currentUser.role !== 'driver') ? `
+        <button class="btn" onclick="approveRequest('${r.id}'); closeModal();">Approve</button>
+        <button class="btn ghost" onclick="denyRequest('${r.id}'); closeModal();">Deny</button>
+      ` : ''}
+      <button class="btn ghost" onclick="closeModal()">Close</button>
+    </div>
+  `);
+}
+
+/* -------------------------
+  USER MODAL
+   ------------------------- */
+function openAddUserModal() {
+  openModal(`
+    <h3>Add User</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+      <div><label>Code</label><input id="u_code" placeholder="EMP100"></div>
+      <div><label>Role</label><select id="u_role"><option value="employee">employee</option><option value="driver">driver</option><option value="warehouse_admin">warehouse_admin</option><option value="super_admin">super_admin</option></select></div>
+      <div style="grid-column:1/-1"><label>Name</label><input id="u_name"></div>
+      <div><label>Email</label><input id="u_email"></div>
+      <div><label>Password</label><input id="u_pass" type="password" value="emp123"></div>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="submitAddUser()">Create</button>
+    </div>
+  `);
+}
+
+function submitAddUser() {
+  const code = document.getElementById('u_code').value.trim();
+  const name = document.getElementById('u_name').value.trim();
+  const email = document.getElementById('u_email').value.trim();
+  const pass = document.getElementById('u_pass').value || 'emp123';
+  const role = document.getElementById('u_role').value;
+  
+  if (!code || !name) return alert('Provide code and name');
+  
+  addUser({ code, name, email, role, pass });
+  closeModal();
+}
+
+function editUser(code) {
+  getUser(code).then(user => {
+    if (!user) return alert('Not found');
+    
+    openModal(`
+      <h3>Edit User</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+        <div><label>Code</label><input id="u_e_code" value="${user.code}" disabled></div>
+        <div><label>Role</label><select id="u_e_role"><option value="employee">employee</option><option value="driver">driver</option><option value="warehouse_admin">warehouse_admin</option><option value="super_admin">super_admin</option></select></div>
+        <div style="grid-column:1/-1"><label>Name</label><input id="u_e_name" value="${escapeHtml(user.name)}"></div>
+        <div><label>Email</label><input id="u_e_email" value="${escapeHtml(user.email || '')}"></div>
+        <div><label>Password</label><input id="u_e_pass" type="password" value="${escapeHtml(user.pass || '')}"></div>
+      </div>
+      <div style="margin-top:12px;text-align:right">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="submitEditUser('${user.code}')">Save</button>
+      </div>
+    `);
+
+    document.getElementById('u_e_role').value = user.role;
+  });
+}
+
+async function submitEditUser(code) {
+  const users = await loadUsers();
+  const user = users.find(u => u.code === code);
+  
+  if (!user) return;
+  
+  user.name = document.getElementById('u_e_name').value.trim();
+  user.email = document.getElementById('u_e_email').value.trim();
+  user.pass = document.getElementById('u_e_pass').value || user.pass;
+  user.role = document.getElementById('u_e_role').value;
+  
+  await saveUser(user);
+  renderUsers();
+  closeModal();
+}
+
+async function deleteUser(code) {
+  if (!confirm('Delete user ' + code + '?')) return;
+  
+  const success = await deleteUserById(code);
+  if (success) {
+    renderUsers();
+  } else {
+    alert('Failed to delete user');
+  }
+}
+
+/* -------------------------
+  REPORTS / CHARTS
+   ------------------------- */
+let statusChart, topChart, timeChart, trendChart;
+
+async function renderReports() {
+  try {
+    const requests = await loadRequests();
+    const products = await loadProducts();
+
+    // Filter requests for employees / drivers
+    let userRequests = requests;
+    if (isEmployee()) {
+      userRequests = requests.filter(r => r.userCode === currentUser.code);
+    } else if (isDriver()) {
+      userRequests = requests.filter(r => r.needDelivery && r.status === 'approved');
+    }
+
+    // status chart
+    const counts = { pending: 0, approved: 0, denied: 0 };
+    userRequests.forEach(r => counts[r.status] = (counts[r.status] || 0) + 1);
+    
+    const ctx1 = document.getElementById('statusChart').getContext('2d');
+    if (statusChart) statusChart.destroy();
+    
+    statusChart = new Chart(ctx1, {
+      type: 'pie',
+      data: {
+        labels: ['Pending', 'Approved', 'Denied'],
+        datasets: [{
+          data: [counts.pending, counts.approved, counts.denied],
+          backgroundColor: ['#f59e0b', '#10b981', '#ef4444']
+        }]
+      },
+      options: { plugins: { legend: { labels: { color: '#cfeeff' } } } }
+    });
+
+    // top products chart
+    let topProductsData = [];
+    if (isEmployee()) {
+      const productCounts = {};
+      userRequests.forEach(r => {
+        if (r.products && Array.isArray(r.products)) {
+          r.products.forEach(p => {
+            productCounts[p.name] = (productCounts[p.name] || 0) + p.qty;
+          });
+        } else {
+          productCounts[r.item] = (productCounts[r.item] || 0) + r.qty;
+        }
+      });
+      
+      topProductsData = Object.entries(productCounts)
+        .map(([name, qty]) => ({ name, qty }))
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 6);
+    } else if (isDriver()) {
+      const productCounts = {};
+      userRequests.forEach(r => {
+        if (r.products && Array.isArray(r.products)) {
+          r.products.forEach(p => {
+            productCounts[p.name] = (productCounts[p.name] || 0) + p.qty;
+          });
+        } else {
+          productCounts[r.item] = (productCounts[r.item] || 0) + r.qty;
+        }
+      });
+      topProductsData = Object.entries(productCounts)
+        .map(([name, qty]) => ({ name, qty }))
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 6);
+    } else {
+      topProductsData = products.map(p => ({
+        name: p.name,
+        qty: getProductRequestsCount(p.name)
+      })).sort((a, b) => b.qty - a.qty).slice(0, 6);
+    }
+    
+    const ctx2 = document.getElementById('topChart').getContext('2d');
+    if (topChart) topChart.destroy();
+    
+    topChart = new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: topProductsData.map(t => t.name),
+        datasets: [{
+          label: 'Requested Qty',
+          data: topProductsData.map(t => t.qty),
+          backgroundColor: '#6366f1'
+        }]
+      },
+      options: {
+        scales: {
+          y: { beginAtZero: true },
+          x: { ticks: { color: '#cfeeff' } }
+        }
+      }
+    });
+
+    // time chart (requests count per day)
+    const byDay = {};
+    userRequests.forEach(r => {
+      const d = new Date(r.date).toLocaleDateString();
+      byDay[d] = (byDay[d] || 0) + 1;
+    });
+    
+    const days = Object.keys(byDay).slice(-12);
+    const ctx3 = document.getElementById('timeChart').getContext('2d');
+    if (timeChart) timeChart.destroy();
+    
+    timeChart = new Chart(ctx3, {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [{
+          label: 'Requests',
+          fill: true,
+          data: days.map(d => byDay[d] || 0),
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)'
+        }]
+      },
+      options: {
+        scales: {
+          y: { beginAtZero: true },
+          x: { ticks: { color: '#cfeeff' } }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error rendering reports:', error);
+  }
+}
+
+async function renderTrendChart() {
+  try {
+    const requests = await loadRequests();
+    
+    // Filter requests for employees / drivers
+    let userRequests = requests;
+    if (isEmployee()) {
+      userRequests = requests.filter(r => r.userCode === currentUser.code);
+    } else if (isDriver()) {
+      userRequests = requests.filter(r => r.needDelivery && r.status === 'approved');
+    }
+    
+    const byUser = {};
+    userRequests.forEach(r => byUser[r.userCode] = (byUser[r.userCode] || 0) + 1);
+    
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    
+    if (isEmployee() || isDriver()) {
+      const byMonth = {};
+      userRequests.forEach(r => {
+        const month = new Date(r.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        byMonth[month] = (byMonth[month] || 0) + 1;
+      });
+      
+      const months = Object.keys(byMonth).slice(-6);
+      
+      trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [{
+            label: isDriver() ? 'My Delivery Requests' : 'My Requests',
+            data: months.map(m => byMonth[m] || 0),
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            fill: true
+          }]
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true },
+            x: { ticks: { color: '#cfeeff' } }
+          }
+        }
+      });
+    } else {
+      const topUsers = Object.entries(byUser).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      
+      trendChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: topUsers.map(t => t[0]),
+          datasets: [{
+            label: 'Requests',
+            data: topUsers.map(t => t[1]),
+            backgroundColor: '#8b5cf6'
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { beginAtZero: true },
+            y: { ticks: { color: '#cfeeff' } }
+          }
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error rendering trend chart:', error);
+  }
+}
+
+
+// Fleet - load function
+async function loadFleet() {
+  try {
+    const { data, error } = await window.supabase.from('fleet').select('*');
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error loading fleet:', error);
+    return [];
+  }
+}
+
+/* -------------------------
+  UTIL
+   ------------------------- */
+function escapeHtml(s = '') {
+  return String(s).replace(/[&<>"']/g, m => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[m]));
+}
+
+async function seedSampleProducts() {
+  try {
+    const moreProducts = [
+      { name: 'Concrete Mixer', category: 'Equipment', qty: 5 },
+      { name: 'Portable Generator', category: 'Equipment', qty: 3 }
+    ];
+    
+    for (const product of moreProducts) {
+      await saveProduct(product);
+    }
+    
+    renderProducts();
+    renderDashboard();
+  } catch (error) {
+    console.error('Error importing sample products:', error);
+  }
+}
+
+/* -------------------------
+  INITIAL APP LOAD
+   ------------------------- */
+async function loadApp() {
+  try {
+    console.log('Starting app load...');
+    
+    renderSidebar();
+    ensureMaps();
+    
+    // Load data sequentially
+    await renderDashboard();
+    await renderProducts();
+    await renderRequests();
+    await renderFleet();
+    await renderUsers();
+    await renderReports();
+
+    await debugDataLoading();
+    
+    showView('dashboard');
+    document.getElementById('app').style.display = 'grid';
+    document.getElementById('loginScreen').style.display = 'none';
+    
+    console.log('App load completed successfully');
+  } catch (error) {
+    console.error('Error loading app:', error);
+    alert('Error loading application data: ' + error.message);
+  }
+}
+
+// on page load
+window.addEventListener('load', async () => {
+  const u = loadCurrent();
+  
+  if (u) {
+    currentUser = u;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'grid';
+    await loadApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+});
+
+// wire up modal close when clicking backdrop
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+</script>
+</body>
+</html>
